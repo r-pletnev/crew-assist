@@ -1,0 +1,17 @@
+{
+  "name": "watchapiprotobuf",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.mjs",
+    "generate-compiled-proto": "pbjs -t static-module -w commonjs -o ./protobuf/compiled.protobuf.js ./protobuf/edge.proto && pbts -o ./protobuf/compiled.protobuf.d.ts ./protobuf/compiled.protobuf.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "protobufjs": "^7.2.6",
+    "protobufjs-cli": "^1.1.2"
+  }
+}

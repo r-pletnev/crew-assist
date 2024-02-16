@@ -1,0 +1,487 @@
+syntax = "proto3";
+package safevue_edge;
+
+///////////////////////////////////////////////////////////////////////////////
+// Command
+///////////////////////////////////////////////////////////////////////////////
+message Command {
+    message CrewAssistData {
+        enum Trigger {
+            MANUAL = 0;     /// Crew assist triggered manually
+            DISMISS = 1;    /// Dismiss previously triggered crew assist
+            FALL = 2;       /// Crew assist triggered automatically due to a suspected fall
+        }
+
+        Trigger trigger = 1;    
+    }
+
+    uint32 version = 1;     /// API version; set to 1 
+    uint32 timestamp = 2;   /// unix timestamp in seconds
+    string res_topic = 3;   /// response topic i.e. where the requester is listening for response
+    // watch id is omitted as it can be obtained from topic
+    oneof data {
+        CrewAssistData crew_assist_data = 4;
+    }
+}
+
+message CommandResponse {
+    uint32 version = 1;     /// API version
+    uint32 timestamp = 2;   /// unix timestamp in seconds from Command request
+    bool success = 3;       /// True if successful, False otherwise
+    string message = 4;     /// error message if `success` is False
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// Event
+///////////////////////////////////////////////////////////////////////////////
+message Event {
+    /**
+     * Publish app started event to `dt/watch/{watch-id}/evt`
+     * e.g.,
+     *   Event {
+     *     version = 1
+     *     timestamp = 1687856363
+     *     data = {
+     *       app_start_up_data = AppStartUpData {
+     *         watch_mac = [0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF]
+     *         app_version = 1.0.0
+     *       }
+     *     }
+     *   }
+     */
+    message AppStartUpData {
+        bytes watch_mac = 1;    /// MAC address in bytes e.g. 'AA:BB:CC:DD:EE:FF' becomes [0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF]
+        string app_version = 2;
+    }
+
+    /**
+     * Publish fall detected event to `dt/watch/{watch-id}/evt`
+     * e.g.,
+     *   Event {
+     *     version = 1
+     *     timestamp = 1687856363
+     *     data = {
+     *       fall_detected_data = FallDetectedData {
+     *         has_fallen = True
+     *       }
+     *     }
+     *   }
+     */
+    message FallDetectedData {
+        // this is required because a message can't be empty
+        bool has_fallen = 1;
+    }
+
+    /**
+     * Publish geofence entered event to `dt/watch/{watch-id}/evt`
+     * e.g.,
+     *   Event {
+     *     version = 1
+     *     timestamp = 1687856363
+     *     data = {
+     *       geofence_entered_data = GeofenceEnteredData {
+     *         beacon_macs = [
+     *           [0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF]
+     *         ]
+     *       }
+     *     }
+     *   }
+     **/
+    message GeofenceEnteredData {
+        repeated bytes beacon_macs = 1; /// MAC address in bytes e.g. 'AA:BB:CC:DD:EE:FF' becomes [0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF]
+    }
+
+    uint32 version = 1;
+    uint32 timestamp = 2;               /// message sent timestamp; unix timestamp in seconds
+    oneof data {
+        AppStartUpData app_start_up_data = 3;
+        FallDetectedData fall_detected_data = 4;
+        GeofenceEnteredData geofence_entered_data = 5;
+    }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// Sensor
+///////////////////////////////////////////////////////////////////////////////
+message Sensor {
+    /**
+     * Publish battery metrics to `dt/watch/{watch-id}/sensor/battery`
+     *
+     * e.g.,
+     *   Sensor {
+     *     version = 1
+     *     timestamp = 1687856363
+     *     data = {
+     *       battery_data = BatteryData {
+     *         level = 1.0
+     *         temperature = 30.5
+     *         status = DISCHARGING
+     *       }
+     *     }
+     *   }
+     **/
+    message BatteryData {
+        enum Status {
+            CHARGING = 0;
+            DISCHARGING = 1;
+            FULL = 2;
+            NOT_CHARGING = 3;
+            UNKNOWN = 4;
+        }
+
+        float level = 1;        /// battery level
+        float temperature = 2;  /// battery temperature
+        Status status = 3;
+    }
+
+    /**
+     * Publish detected beacons to `dt/watch/{watch-id}/sensor/beacon`
+     *
+     * e.g.,
+     *   Sensor {
+     *     version = 1
+     *     timestamp = 1687856363
+     *     data = {
+     *       beacon_data = BeaconData {
+     *         mac = [
+     *           [0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0x00],
+     *           [0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF]
+     *         ];
+     *         rssi = [-32, -48]
+     *         battery = [100, 100]
+     *       }
+     *     }
+     *   }
+     **/
+    message BeaconData {
+        repeated bytes mac = 1;     /// MAC address in bytes e.g. 'AA:BB:CC:DD:EE:FF' becomes [0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF]
+        repeated sint32 rssi = 2;
+        repeated int32 battery = 3;
+    }
+
+    /**
+     * Publish GPS location to `dt/watch/{watch-id}/sensor/gps`
+     *
+     * e.g.,
+     *   Sensor {
+     *     version = 1
+     *     timestamp = 1687856363
+     *     data = {
+     *       gps_data = GpsData {
+     *         altitude = 0
+     *         latitude = 0
+     *         longitude = 0
+     *       }
+     *     }
+     *   }
+     */
+    message GpsData {
+        float altitude = 1;
+        float latitude = 2;
+        float longitude = 3;
+    }
+
+    /**
+     * Publish heart rate measurement to `dt/watch/{watch-id}/sensor/heartrate`
+     *
+     * e.g.,
+     *   Sensor {
+     *     version = 1
+     *     timestamp = 1687856363
+     *     data = {
+     *       heart_rate_data = HeartRateData {
+     *         value = 60.0
+     *       }
+     *     }
+     *   }
+     **/
+    message HeartRateData {
+        float value = 1;
+    }
+
+    /**
+     * Publish humidity measurement to `dt/watch/{watch-id}/sensor/humidity`
+     *
+     * e.g.,
+     *   Sensor {
+     *     version = 1
+     *     timestamp = 1687856363
+     *     data = {
+     *       humidity_data = HumidityData {
+     *         value = 80.0
+     *       }
+     *     }
+     *   }
+     **/
+    message HumidityData {
+        float value = 1;
+    }
+
+    /**
+     * Publish noise measurement to `dt/watch/{watch-id}/sensor/noise`
+     *
+     * e.g.,
+     *   Sensor {
+     *     version = 1
+     *     timestamp = 1687856363
+     *     data = {
+     *       noise_data = NoiseData {
+     *         dBA = -41
+     *         dBZ = -42
+     *       }
+     *     }
+     *   }
+     **/
+    message NoiseData {
+        sint32 dBA = 1;
+        sint32 dBZ = 2;
+    }
+
+    /**
+     * Publish screen metrics to `dt/watch/{watch-id}/sensor/screen`
+     *
+     * e.g.,
+     *   Sensor {
+     *     version = 1
+     *     timestamp = 1687856363
+     *     data = {
+     *       screen_data = ScreenData {
+     *         value = 10.5
+     *       }
+     *     }
+     *   }
+     **/
+    message ScreenData {
+        float value = 1;    /// screen on time in seconds since last collection
+    }
+
+    /**
+     * Publish steps measurement to `dt/watch/{watch-id}/sensor/steps`
+     *
+     * e.g.,
+     *   Sensor {
+     *     version = 1
+     *     timestamp = 1687856363
+     *     data = {
+     *       steps_data = StepsData {
+     *         value = 105
+     *       }
+     *     }
+     *   }
+     */
+    message StepsData {
+        uint32 value = 1;
+    }
+
+    /**
+     * Publish temperature measurement to `dt/watch/{watch-id}/sensor/temperature`
+     *
+     * e.g.,
+     *   Sensor {
+     *     version = 1
+     *     timestamp = 1687856363
+     *     data = {
+     *       temperature_data = TemperatureData {
+     *         value = 30.0
+     *       }
+     *     }
+     *   }
+     **/
+    message TemperatureData {
+        float value = 1;
+    }
+
+    /**
+     * Publish WiFi metrics to `dt/watch/{watch-id}/sensor/wifi`
+     *
+     * e.g.,
+     *   Sensor {
+     *     version = 1
+     *     timestamp = 1687856363
+     *     data = {
+     *       // top 3 strongest wifi
+     *       wifi_data = WifiData {
+     *       bssid = [
+     *         [0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF]
+     *       ]
+     *       rssi = [-40]
+     *     }
+     *   }
+     * }
+     **/
+    message WifiData {
+        repeated string bssid = 1;
+        repeated sint32 rssi = 2;
+    }
+
+    uint32 version = 1;     /// API version
+    uint32 timestamp = 2;   /// unix timestamp in seconds
+    // watch id is not necessary as it can be obtained from the topic
+    oneof data {
+        BatteryData battery_data = 3;
+        BeaconData beacon_data = 4;
+        GpsData gps_data = 5;
+        HeartRateData heart_rate_data = 6;
+        HumidityData humidity_data = 7;
+        NoiseData noise_data = 8;
+        ScreenData screen_data = 9;
+        StepsData steps_data = 10;
+        TemperatureData temperature_data = 11;
+        WifiData wifi_data = 12;
+    }
+}
+
+/**
+ * Current sensor config.
+ *
+ * Subscribe to `dt/edge/sensor/{sensor-type}/config` to get the current sensor config
+ **/
+message SensorConfigData {
+    enum SensorType {
+        UNKNOWN = 0;
+        BATTERY = 1;
+        BEACON = 2;
+        GPS = 3;
+        HEART_RATE = 4; // included for completeness sake but cannot be configured
+        HUMIDITY = 5;
+        NOISE = 6;
+        SCREEN = 7;
+        STEPS = 8;
+        TEMPERATURE = 9;
+        WIFI = 10;
+    }
+    
+    message ConfigData {
+        SensorType sensor_type = 1;     
+        int32 read_interval = 2;    // in seconds
+    }
+
+    uint32 version = 1;
+    uint32 timestamp = 2;   /// message sent timestamp; unix timestamp in seconds
+    ConfigData config_data = 3;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// Crew assist
+///////////////////////////////////////////////////////////////////////////////
+message CrewAssistAckData {
+    message AckData {
+        string id = 1;                  /// Alert id
+        string acknowledger_id = 2; 
+        string acknowledger_name = 3; 
+    }
+
+    uint32 version = 1;
+    uint32 timestamp = 2;               /// message sent timestamp; unix timestamp in seconds
+    oneof data {
+        AckData ack_data = 3;
+    }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// Geofence
+///////////////////////////////////////////////////////////////////////////////
+message ActiveGeofenceData {
+    message GeofenceData {
+        string id = 1;      
+        string creator_id = 2;
+        string creator_name = 3;
+        string title = 4;
+        string description = 5;
+        repeated bytes beacon_macs = 6;
+        // user ids that are allowed to be in the geofence i.e. won't trigger geofence alert
+        repeated string allowed_ids = 7;
+    }
+    
+    uint32 version = 1;
+    uint32 timestamp = 2;   /// message sent timestamp; unix timestamp in seconds
+    repeated GeofenceData geofence_data = 3;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// Messaging
+///////////////////////////////////////////////////////////////////////////////
+message BroadcastMessageData {
+    message MessageData {
+        string id = 1;
+        string sender_id = 2;
+        string sender_name = 3;
+        string message = 4; 
+    }
+
+    uint32 version = 1;
+    uint32 timestamp = 2;   /// message sent timestamp; unix timestamp in seconds
+    oneof data {
+        MessageData message_data = 3;
+    }
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// User
+///////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Current watch user.
+ *
+ * Subscribe to `dt/watch/{watchId}/user` to get the current user for the device
+ **/
+message CurrentUserData {
+    message UserData {
+        string user_id = 1;
+        string user_name = 2;
+        uint32 dob = 3;                 /// date of birth; 1970-12-31 will be encoded as 19701231
+    }
+
+    uint32 version = 1;
+    uint32 timestamp = 2;               /// message sent timestamp; unix timestamp in seconds
+    optional UserData user_data = 3;    /// `user_data` will be empty if the watch is not assigned to any user.
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// Server time
+///////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Current server time.
+ *
+ * This is updated every 5 seconds.
+ *
+ * Data topic: `dt/edge/time`
+ **/
+message EdgeTimeData {
+    message TimeData {
+        uint32 timestamp = 1;   /// unix timestamp in seconds
+        float utc_offset = 2;
+    }
+
+    uint32 version = 1;
+    oneof data {
+        TimeData time_data = 2;
+    }
+}
+
+
+///////////////////////////////////////////////////////////////////////////////
+// Watch App Version
+///////////////////////////////////////////////////////////////////////////////
+
+/**
+ * Current watch app version
+ *
+ * Published every server startup
+ *
+ * Data topic: `dt/edge/app/version`
+ **/
+message AppVersionData {
+    message VersionData {
+        string name = 1;            /// App package name
+        string version = 2;         /// App version
+        string version_code = 3;    /// App version code
+        string apk_url = 4;
+    }
+    uint32 version = 1;
+    uint32 timestamp = 2;   /// message sent timestamp; unix timestamp in seconds
+    oneof data {
+        VersionData version_data = 3;
+    }
+}
